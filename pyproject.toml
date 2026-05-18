@@ -1,0 +1,19 @@
+[project]
+name = "aachat-curation-bot"
+version = "0.1.0"
+description = "Curation agent for the aachat Discover catalog. Reads a long-lived user JWT and exposes register-agent / register-skill tools."
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+curation-bot = "curation_bot.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/curation_bot"]

@@ -1,0 +1,9 @@
+name: default
+description: "aachat-curation-bot host process — Python tool runner"
+config:
+  packages:
+    pip:
+      - requests
+      - python-dotenv
+  networking:
+    type: unrestricted

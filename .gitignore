@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.python-version
+
+# secrets
+.env
+.env.local
+*.jwt
+~/.aachat/
+
+# build artifacts
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# editor
+.DS_Store
+.vscode/
+.idea/
