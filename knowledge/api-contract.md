@@ -17,8 +17,21 @@ SPEC は `kensaku63/aachat:docs/design/discovery-curation-write-path/SPEC-01-dis
 
 **Body**:
 ```json
-{ "github_repo": "owner/repo" }
+{
+  "github_repo": "owner/repo",
+  "description_ja": "（任意）日本語の説明 markdown",
+  "description_en": "（任意）英語の説明 markdown",
+  "skill_descriptions": {
+    "skills/foo": { "description_ja": "…", "description_en": "…" }
+  }
+}
 ```
+- `github_repo` 以外は全て任意 (`#serde(default)`)。`github_repo` だけ送れば従来どおり動く。
+- `description_ja` / `description_en`: catalog 行に保存する **curation 説明文**。GitHub repo description
+  (英語自動取り込み) とは別カラム。各 field の制約: trim 後 1〜5000 文字、null byte 不可。
+- `skill_descriptions`: 子 skill ごとの ja/en を 1 リクエストで渡すマップ。key は
+  `skills/<dir>` 形式の `skill_path`。**walker が発見した skill に一致しない key は 400 で弾かれる**
+  (typo / stale データ防止)。
 
 **Behavior**:
 - `owner/repo` が公開レポであること。private は 400。
@@ -30,6 +43,10 @@ SPEC は `kensaku63/aachat:docs/design/discovery-curation-write-path/SPEC-01-dis
 - 子 skill の `origin` は親と同じ値が伝播する。
 - `ON CONFLICT (github_repo) DO UPDATE` で再 submit すると、`origin` 以外 (name/description/stars 等)
   は更新される。**`origin` は first-recorded を保持**。
+- **`description_ja` / `description_en` の更新は `COALESCE(EXCLUDED, 既存)`**。新しい非 null 値を
+  送れば上書き、null / 省略なら既存値を保持。→ **一度入れた ja/en を空にはできない**
+  (クリアが必要なら本家に専用経路を足す案件)。
+- リポから消えた skill は再 submit 時に `skills_catalog` から削除される (orphan を残さない)。
 
 **Response (201)**:
 ```json
@@ -40,8 +57,14 @@ SPEC は `kensaku63/aachat:docs/design/discovery-curation-write-path/SPEC-01-dis
 
 **Body**:
 ```json
-{ "github_repo": "owner/repo", "skill_path": "skills/foo" }
+{
+  "github_repo": "owner/repo",
+  "skill_path": "skills/foo",
+  "description_ja": "（任意）日本語の説明 markdown",
+  "description_en": "（任意）英語の説明 markdown"
+}
 ```
+- `description_ja` / `description_en` は任意。制約・更新挙動 (COALESCE) は agent と同じ。
 
 **Behavior**:
 - `{skill_path}/SKILL.md` が存在する必要がある (`skill_path == "."` の場合は root SKILL.md)。
@@ -66,6 +89,8 @@ SPEC は `kensaku63/aachat:docs/design/discovery-curation-write-path/SPEC-01-dis
 | 状態 | 意味 | 対処 |
 |---|---|---|
 | 400 `VALIDATION_ERROR` | `github_repo` / `skill_path` の形式不正、CLAUDE.md / SKILL.md 不在 | 指摘内容で `github_repo` / `skill_path` を直して再 submit |
+| 400 `VALIDATION_ERROR` | `description_ja` / `description_en` が空文字 / null byte / 5000 文字超 | trim 後 1〜5000 文字に収めて再送 |
+| 400 `VALIDATION_ERROR` | `skill_descriptions` の key が repo の skill に一致しない | walker 発見済みの `skills/<dir>` に key を合わせる (まず preview / get で確認) |
 | 401 `UNAUTHORIZED` | JWT 無効 / expire / DB 上の user が deleted | `scripts/refresh-jwt.sh` 実行 |
 | 403 `DiscoverSubmitHumanOnly` | agent JWT で叩いた | host process の JWT が agent ではなく user (human) であることを確認 |
 | 403 `SystemPrincipalNotAllowed` | system JWT で叩いた | 同上 |
