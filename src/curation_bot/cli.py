@@ -23,17 +23,39 @@ def main(argv: list[str] | None = None) -> int:
 
     agent = sub.add_parser("register-agent", help="Register a GitHub repo as an agent.")
     agent.add_argument("github_repo", help='e.g. "obra/superpowers"')
+    agent.add_argument("--description-ja", help="Japanese curation blurb (markdown).")
+    agent.add_argument("--description-en", help="English curation blurb (markdown).")
+    agent.add_argument(
+        "--skill-descriptions",
+        metavar="JSON",
+        help='Per-skill blurbs, e.g. \'{"skills/foo": {"description_ja": "…", "description_en": "…"}}\'',
+    )
 
     skill = sub.add_parser("register-skill", help="Register a single SKILL.md as a skill.")
     skill.add_argument("github_repo")
     skill.add_argument("skill_path", help='e.g. "skills/brainstorming" or "." for root')
+    skill.add_argument("--description-ja", help="Japanese curation blurb (markdown).")
+    skill.add_argument("--description-en", help="English curation blurb (markdown).")
 
     args = parser.parse_args(argv)
 
     if args.cmd == "register-agent":
-        result = register_agent(args.github_repo)
+        skill_descriptions = (
+            json.loads(args.skill_descriptions) if args.skill_descriptions else None
+        )
+        result = register_agent(
+            args.github_repo,
+            description_ja=args.description_ja,
+            description_en=args.description_en,
+            skill_descriptions=skill_descriptions,
+        )
     elif args.cmd == "register-skill":
-        result = register_skill(args.github_repo, args.skill_path)
+        result = register_skill(
+            args.github_repo,
+            args.skill_path,
+            description_ja=args.description_ja,
+            description_en=args.description_en,
+        )
     else:
         parser.error(f"unknown command: {args.cmd}")
         return 2

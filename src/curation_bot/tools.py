@@ -52,7 +52,12 @@ def _post(endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
     return {"status": r.status_code, "data": r.json()}
 
 
-def register_agent(github_repo: str) -> dict[str, Any]:
+def register_agent(
+    github_repo: str,
+    description_ja: str | None = None,
+    description_en: str | None = None,
+    skill_descriptions: dict[str, dict[str, str]] | None = None,
+) -> dict[str, Any]:
     """Register a GitHub repo as an agent in the aachat Discover catalog.
 
     The repo must be public and contain CLAUDE.md or identity.md at the root.
@@ -62,11 +67,35 @@ def register_agent(github_repo: str) -> dict[str, Any]:
     - Otherwise it is recorded with `origin='curated'`.
 
     Child skills under `skills/` are auto-registered with the same `origin`.
+
+    Curation descriptions (optional; this is the whole point of the curation
+    agent — write the bilingual blurb the GitHub repo lacks):
+
+    - `description_ja` / `description_en`: markdown blurb stored on the catalog
+      row, separate from the GitHub repo description. Each is 1..=5000 chars
+      after trim. On re-submit the server COALESCEs — a non-null value
+      overwrites, null/omitted keeps the existing value (so you cannot clear a
+      field back to empty once set).
+    - `skill_descriptions`: per-child-skill bilingual blurbs in one round-trip.
+      Keys are `skills/<dir>` paths; a key that doesn't match a skill the
+      walker found in the repo is rejected with 400.
     """
-    return _post("/v1/agents/discover", {"github_repo": github_repo})
+    payload: dict[str, Any] = {"github_repo": github_repo}
+    if description_ja is not None:
+        payload["description_ja"] = description_ja
+    if description_en is not None:
+        payload["description_en"] = description_en
+    if skill_descriptions:
+        payload["skill_descriptions"] = skill_descriptions
+    return _post("/v1/agents/discover", payload)
 
 
-def register_skill(github_repo: str, skill_path: str) -> dict[str, Any]:
+def register_skill(
+    github_repo: str,
+    skill_path: str,
+    description_ja: str | None = None,
+    description_en: str | None = None,
+) -> dict[str, Any]:
     """Register a single skill (SKILL.md) under a repo to the catalog.
 
     `skill_path` must be a relative path. Use `"."` if the SKILL.md is at the
@@ -76,8 +105,13 @@ def register_skill(github_repo: str, skill_path: str) -> dict[str, Any]:
     This endpoint does not require a parent agent row — repos that are
     "skill-only" (no CLAUDE.md / identity.md) can still publish individual
     skills this way.
+
+    `description_ja` / `description_en` behave exactly as in `register_agent`
+    (optional, 1..=5000 chars, COALESCE on re-submit).
     """
-    return _post(
-        "/v1/skills/discover",
-        {"github_repo": github_repo, "skill_path": skill_path},
-    )
+    payload: dict[str, Any] = {"github_repo": github_repo, "skill_path": skill_path}
+    if description_ja is not None:
+        payload["description_ja"] = description_ja
+    if description_en is not None:
+        payload["description_en"] = description_en
+    return _post("/v1/skills/discover", payload)
