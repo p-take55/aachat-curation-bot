@@ -96,3 +96,13 @@ SPEC は `kensaku63/aachat:docs/design/discovery-curation-write-path/SPEC-01-dis
 | 403 `SystemPrincipalNotAllowed` | system JWT で叩いた | 同上 |
 | 404 | `github_repo` が見つからない (private or 存在しない) | repo URL を再確認 |
 | 500 | サーバー内部エラー | ログ確認、本家にエスカレーション |
+
+
+## SPEC-03 / SPEC-04 で増えた契約 (aachat PR #620)
+
+- `POST /v1/skills/discover` body: `headline_ja?` `headline_en?` (≤60字) / `deps?: [{kind: "cli"|"mcp", name}]` / `tags?: [{key, label_ja?, label_en?}]`
+- `POST /v1/agents/discover` body: `tags?` (同上)。`skill_descriptions[path]` にも headline/deps/tags を同梱可
+- 置換系フィールドの共通セマンティクス: 省略=維持 / `[]`=クリア / 配列=全置換。headline/description は COALESCE (NULL に戻せない)
+- `GET /v1/discover/tags?limit=` — タグ registry (key, label_ja/en, 3エンティティ別件数)。件数降順
+- カテゴリ概念は全廃 (`?category=` は消滅、絞り込みは `?tag=key`)
+- `PUT /v1/admin/project-templates/{slug}/thumbnail` — PNG ≤2MB、admin JWT。レスポンス `{thumbnail_url}`

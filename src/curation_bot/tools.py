@@ -56,7 +56,8 @@ def register_agent(
     github_repo: str,
     description_ja: str | None = None,
     description_en: str | None = None,
-    skill_descriptions: dict[str, dict[str, str]] | None = None,
+    skill_descriptions: dict[str, dict[str, Any]] | None = None,
+    tags: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Register a GitHub repo as an agent in the aachat Discover catalog.
 
@@ -76,9 +77,17 @@ def register_agent(
       after trim. On re-submit the server COALESCEs — a non-null value
       overwrites, null/omitted keeps the existing value (so you cannot clear a
       field back to empty once set).
-    - `skill_descriptions`: per-child-skill bilingual blurbs in one round-trip.
-      Keys are `skills/<dir>` paths; a key that doesn't match a skill the
-      walker found in the repo is rejected with 400.
+    - `skill_descriptions`: per-child-skill curation payloads in one
+      round-trip. Keys are `skills/<dir>` paths; a key that doesn't match a
+      skill the walker found in the repo is rejected with 400. Each value may
+      carry `description_ja` / `description_en` / `headline_ja` /
+      `headline_en` (outcome one-liner, <=60 chars) / `deps`
+      (`[{"kind": "cli"|"mcp", "name": ...}]`) / `tags`.
+    - `tags`: `[{"key", "label_ja", "label_en"}]`. Key must be lowercase
+      kebab (`^[a-z0-9][a-z0-9-]{0,31}$`), max 20, no duplicates, ordered by
+      importance (the first tags become the card badges). Labels upsert into
+      the shared tag registry (COALESCE). Semantics: omitted = keep existing
+      array, `[]` = clear, list = replace.
     """
     payload: dict[str, Any] = {"github_repo": github_repo}
     if description_ja is not None:
@@ -87,6 +96,8 @@ def register_agent(
         payload["description_en"] = description_en
     if skill_descriptions:
         payload["skill_descriptions"] = skill_descriptions
+    if tags is not None:
+        payload["tags"] = tags
     return _post("/v1/agents/discover", payload)
 
 
@@ -95,6 +106,10 @@ def register_skill(
     skill_path: str,
     description_ja: str | None = None,
     description_en: str | None = None,
+    headline_ja: str | None = None,
+    headline_en: str | None = None,
+    deps: list[dict[str, str]] | None = None,
+    tags: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Register a single skill (SKILL.md) under a repo to the catalog.
 
@@ -108,10 +123,25 @@ def register_skill(
 
     `description_ja` / `description_en` behave exactly as in `register_agent`
     (optional, 1..=5000 chars, COALESCE on re-submit).
+
+    - `headline_ja` / `headline_en`: the outcome one-liner shown as the card
+      title ("what you can get done"), <=60 chars, verb-ended, must not just
+      repeat the skill name. COALESCE on re-submit.
+    - `deps`: `[{"kind": "cli"|"mcp", "name": ...}]` — external tools the
+      skill needs. Omitted = keep, `[]` = clear, list = replace.
+    - `tags`: same contract as `register_agent`.
     """
     payload: dict[str, Any] = {"github_repo": github_repo, "skill_path": skill_path}
     if description_ja is not None:
         payload["description_ja"] = description_ja
     if description_en is not None:
         payload["description_en"] = description_en
+    if headline_ja is not None:
+        payload["headline_ja"] = headline_ja
+    if headline_en is not None:
+        payload["headline_en"] = headline_en
+    if deps is not None:
+        payload["deps"] = deps
+    if tags is not None:
+        payload["tags"] = tags
     return _post("/v1/skills/discover", payload)

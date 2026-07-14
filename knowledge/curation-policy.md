@@ -63,3 +63,49 @@ DELETE FROM skills_catalog WHERE github_repo = 'owner/repo';
 ```
 
 `ON CASCADE` で votes / comments も削除される (テーブル定義済み)。
+
+## 効用文 (headline) の書き方 — スキル必須運用
+
+スキルの submit には `headline_ja` / `headline_en` を必ず付ける (API 上は任意だが運用必須)。
+カタログの見出しはスキル生名ではなく効用文が主役になる (aachat PR #620 以降)。
+
+- 「このスキルで何ができるようになるか」を動詞止めの1文で。例: `brainstorming` → 「曖昧な仕様を言語化する問いを出す」
+- 全角24字以内目安 (カードで1行)。60字を超えると 400
+- スキル生名の再掲・言い換えだけは禁止 (「ブレインストーミングをする」は不合格)
+- 修正は新しい文で再 submit (COALESCE のため NULL には戻せない。description と同じ制約)
+
+## タグの付け方
+
+タグは Discover の棚・タイル・カードバッジの源泉。`tags: [{key, label_ja, label_en}]` で送る。
+
+- key: lowercase kebab (`^[a-z0-9][a-z0-9-]{0,31}$`)、最大20個、重複禁止。GitHub topics は概ねそのまま使えるが、必ずこの形式に正規化してから送る
+- **配列の順序 = 重要度**。先頭1〜2個がカードのバッジに出る。最重要の職能タグを先頭に
+- 新しい key には `label_ja` / `label_en` を必ず付ける (ラベル未登録のタグは UI に生 key が出る)。既存 key はラベル省略可 (COALESCE)
+- 置換セマнティクスの罠: **省略 = 既存維持 / `[]` = クリア / 配列 = 全置換**。部分追加はできないので、更新時は完成形の配列を送る
+- 参考語彙 (旧カテゴリ体系から継承): engineering / marketing / design / administration / research / review / testing / sre / seo / sns / copywriting / meeting / accounting / support など。乱造せず、既存タグ (`GET /v1/discover/tags`) を先に確認して寄せる
+
+## 依存 (deps) の申告 — スキル
+
+SKILL.md を読み、スキルが前提にする外部ツールを `deps: [{kind: "cli"|"mcp", name}]` で申告する。
+
+- kind は 2 値のみ。name はツールの一般名 (例: `jq`, `tavily`, `playwright`)。インストールコマンドは書かない
+- 省略 = 既存維持 / `[]` = クリア / 配列 = 全置換
+
+## 埋め戻し (backfill) runbook
+
+契約追加後の既存行に効用文・タグラベル・deps を行き渡らせる手順:
+
+1. `GET /v1/discover/tags?limit=100` でラベル未登録 (label_ja が null) の key を確認
+2. `GET /v1/agents/discover` / `GET /v1/skills/discover` を offset で走査し、headline_ja が null のスキル・タグが空/未整備の行をリストアップ
+3. 各 repo を register_agent / register_skill で再 submit (効用文・タグ+ラベル・deps を添えて)。専用バッチ・専用 API は無い — 再 submit が唯一の管理経路
+
+## サムネイル生成 — プロジェクトテンプレート
+
+テンプレートのサムネは aachat 本体リポジトリの `dev/thumbnail-kit/` で生成する
+(部品CSS + レンダラ + runbook が自己完結。詳細は同ディレクトリの README.md と PATTERNS.md)。
+
+1. 実行環境: node 22 + `npm install` + `npx playwright install chromium` (kit ディレクトリ内)
+2. `GET /v1/discover/project-templates/{slug}` でメタデータ取得 → PATTERNS.md の型を選び kit.css の部品だけで HTML を組む
+3. `node render.mjs work/<slug>.html work/<slug>.png` — センタリング逸脱と外部アイコン404の警告をゼロにする
+4. `PUT /v1/admin/project-templates/{slug}/thumbnail` (Content-Type: image/png, ≤2MB) でアップロード。**admin 権限の JWT が必要** (通常の curation JWT とは別。kensaku に発行を依頼)
+5. 再生成は同じ手順 (内容ハッシュ入りキーで新URLに置き換わる)
